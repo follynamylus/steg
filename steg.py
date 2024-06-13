@@ -2,7 +2,7 @@ import streamlit as st
 from PIL import Image
 import numpy as np
 import io
-tab_1, tab_2,tab_3 = st.tabs(['Process Steganography','Encode Output','Decode Output'])
+
 
 
 def encode(image, message):
