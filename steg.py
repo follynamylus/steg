@@ -1,163 +1,94 @@
-# Python program implementing Image Steganography
-
-# PIL module is used to extract
-# pixels of image and modify it
 import streamlit as st
 from PIL import Image
+import numpy as np
 import io
-
 tab_1, tab_2,tab_3 = st.tabs(['Process Steganography','Encode Output','Decode Output'])
 
-# Convert encoding data into 8-bit binary
-# form using ASCII value of characters
-def genData(data):
 
-		# list of binary codes
-		# of given data
-		newd = []
+def encode(image, message):
+    # Convert message to binary
+    binary_message = ''.join(format(ord(char), '08b') for char in message)
+    binary_message += '1111111111111110'  # Add delimiter indicating end of message
+    
+    # Convert image to numpy array
+    img_array = np.array(image)
+    
+    # Encode message into image
+    index = 0
+    for row in range(img_array.shape[0]):
+        for col in range(img_array.shape[1]):
+            for color in range(3):  # R, G, B channels
+                if index < len(binary_message):
+                    img_array[row][col][color] = img_array[row][col][color] & ~1 | int(binary_message[index])
+                    index += 1
+                else:
+                    break
+            if index >= len(binary_message):
+                break
+        if index >= len(binary_message):
+            break
+    
+    encoded_image = Image.fromarray(img_array)
+    
+    return encoded_image
 
-		for i in data:
-			newd.append(format(ord(i), '08b'))
-		return newd
+def decode(image):
+    binary_message = ''
+    img_array = np.array(image)
+    
+    # Decode message from image
+    for row in range(img_array.shape[0]):
+        for col in range(img_array.shape[1]):
+            for color in range(3):  # R, G, B channels
+                binary_message += str(img_array[row][col][color] & 1)
+    
+    # Find delimiter and extract message
+    delimiter_index = binary_message.find('1111111111111110')
+    if delimiter_index != -1:
+        binary_message = binary_message[:delimiter_index]
+        decoded_message = ''.join(chr(int(binary_message[i:i+8], 2)) for i in range(0, len(binary_message), 8))
+        return decoded_message
+    else:
+        return "No message found"
 
-# Pixels are modified according to the
-# 8-bit binary data and finally returned
-def modPix(pix, data):
-
-	datalist = genData(data)
-	lendata = len(datalist)
-	imdata = iter(pix)
-
-	for i in range(lendata):
-
-		# Extracting 3 pixels at a time
-		pix = [value for value in imdata.__next__()[:3] +
-								imdata.__next__()[:3] +
-								imdata.__next__()[:3]]
-
-		# Pixel value should be made
-		# odd for 1 and even for 0
-		for j in range(0, 8):
-			if (datalist[i][j] == '0' and pix[j]% 2 != 0):
-				pix[j] -= 1
-
-			elif (datalist[i][j] == '1' and pix[j] % 2 == 0):
-				if(pix[j] != 0):
-					pix[j] -= 1
-				else:
-					pix[j] += 1
-				# pix[j] -= 1
-
-		# Eighth pixel of every set tells
-		# whether to stop ot read further.
-		# 0 means keep reading; 1 means thec
-		# message is over.
-		if (i == lendata - 1):
-			if (pix[-1] % 2 == 0):
-				if(pix[-1] != 0):
-					pix[-1] -= 1
-				else:
-					pix[-1] += 1
-
-		else:
-			if (pix[-1] % 2 != 0):
-				pix[-1] -= 1
-
-		pix = tuple(pix)
-		yield pix[0:3]
-		yield pix[3:6]
-		yield pix[6:9]
-
-def encode_enc(newimg, data):
-	w = newimg.size[0]
-	(x, y) = (0, 0)
-
-	for pixel in modPix(newimg.getdata(), data):
-
-		# Putting modified pixels in the new image
-		newimg.putpixel((x, y), pixel)
-		if (x == w - 1):
-			x = 0
-			y += 1
-		else:
-			x += 1
-
-# Encode data into image
-def encode():
-	img = st.sidebar.file_uploader("Input Image ")
-	if img != None :
-		image = Image.open(img, 'r')
-
-		data = st.sidebar.text_input("Enter data to be encoded : ")
-		tab_1.image(image, "cover image")
-		if (len(data) == 0):
-			st.warning("No data to encode")
-		else :
-			tab_1.success("Data to encode")
-			tab_1.write(data)
-		newimg = image.copy()
-		
-		encode_enc(newimg, data)
-		def convert_image_to_bytes(img):
-			img_bytes = io.BytesIO()
-			img.save(img_bytes, format='PNG')
-			return img_bytes.getvalue()
-		
-		image_bytes = convert_image_to_bytes(image)
-		
-		new_img_name = st.sidebar.text_input("Enter the name of new image(with extension) : ")
-		if new_img_name != None :
-			tab_2.download_button(label="Download Encoded Image",data= image_bytes,
-						  file_name= f'{new_img_name}.png',mime= "image/png")
-			#if download_img != None :
-				#newimg.save(new_img_name, str(new_img_name.split(".")[1].upper()))
-
-# Decode the data in the image
-def decode():
-	img = st.sidebar.file_uploader("Input Image to Decode ")
-	if img != None :
-		image = Image.open(img, 'r')
-		tab_3.image(image= image, caption= "Image to decode")
-		data = ''
-		imgdata = iter(image.getdata())
-		i = 0
-		while (i < 1):
-			pixels = [value for value in imgdata.__next__()[:3] +
-									imgdata.__next__()[:3] +
-									imgdata.__next__()[:3]]
-
-			# string of binary data
-			binstr = ''
-
-			for i in pixels[:8]:
-				if (i % 2 == 0):
-					binstr += '0'
-				else:
-					binstr += '1'
-
-			data += chr(int(binstr, 2))
-			i += 1
-			if (pixels[-1] % 2 != 0):
-				
-				return data
-
-# Main Function
 def main():
-	option = st.sidebar.selectbox("Choose the action to perform in the application",('Encode','Decode'))
-	if (option == "Encode"):
-		encode()
+    st.title("Steganography Tool")
+    
+    option = st.sidebar.selectbox("Choose the action", ('Encode', 'Decode'))
+    
+    if option == 'Encode':
+        st.subheader("Encode Message")
+        image = st.file_uploader("Upload Image", type=["jpg", "png"])
+        message = st.text_area("Enter Message to Encode")
+        
+        if st.button("Encode"):
+            if image is not None and message != "":
+                encoded_image = encode(Image.open(image), message)
+                st.image(encoded_image, caption="Encoded Image", use_column_width=True)
+                
+                # Enable users to download the encoded image
+                img_bytes = io.BytesIO()
+                encoded_image.save(img_bytes, format='PNG')
+                st.download_button("Download Encoded Image", img_bytes.getvalue(), "encoded_image.png")
+                
+            else:
+                st.warning("Please upload an image and enter a message to encode.")
+    
+    elif option == 'Decode':
+        st.subheader("Decode Message")
+        image = st.file_uploader("Upload Image to Decode", type=["jpg", "png"])
+        
+        
+        if st.button("Decode"):
+            if image is not None:
+                st.image(image= image, caption= "Image to decode" )
+                decoded_message = decode(Image.open(image))
+                st.success("Decoded Message:")
+                st.subheader(decoded_message)
+            else:
+                st.warning("Please upload an image to decode.")
 
-	elif (option == "Decode"):
-		tab_3.write("Decoded Word : " + decode())
-		#data = decode()
-		#if data != None :
-			#tab_3.success("Image Decoded")
-			#tab_3.subheader(data)
-	else:
-		raise Exception("Enter correct input")
+if __name__ == '__main__':
+    main()
 
-# Driver Code
-if __name__ == '__main__' :
 
-	# Calling main function
-	main()
